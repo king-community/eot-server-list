@@ -3235,12 +3235,15 @@ $('list').addEventListener('click',async e=>{
   const game=state.games.find(g=>g.key===button.dataset.copyGame);
   if(!game)return;
   const link=eotShareLink(game);
+  // Put the EOT brand and actual match facts above the URL in Discord.
+  // Preserve a bare URL on its own line so Discord can generate the rich preview.
+  const content=eotDiscordShareText(game,link);
   try{
     if(navigator.clipboard&&window.isSecureContext){
-      await navigator.clipboard.writeText(link);
+      await navigator.clipboard.writeText(content);
     }else{
       const text=document.createElement('textarea');
-      text.value=link;
+      text.value=content;
       text.style.position='fixed';
       text.style.opacity='0';
       document.body.append(text);text.select();
@@ -3250,7 +3253,7 @@ $('list').addEventListener('click',async e=>{
     const previous=button.textContent;button.textContent='✓ EOT LINK COPIED';
     setTimeout(()=>{if(button.isConnected)button.textContent=previous},1800);
   }catch(error){
-    window.prompt('Copy EOT match link:',link);
+    window.prompt('Copy EOT match details and link:',content);
   }
 });
 $('list').addEventListener('click',e=>{
@@ -3505,6 +3508,24 @@ function eotShareLink(g){
   }}catch(_){}
  }
  const u=new URL(EOT_PUBLIC_URL);u.searchParams.set('match',id);u.searchParams.set('region',region);return u.toString();
+}
+// V42.7: a clean Discord message containing the EOT name and current match facts.
+// A bare URL is intentionally retained because it triggers Discord's rich OG card.
+function eotDiscordShareText(game,link){
+ const plain=value=>String(value??'')
+  .replace(/[\r\n\t\u2028\u2029]+/g,' ')
+  .replace(/@/g,'＠') // No accidental Discord @everyone or role mentions from game names.
+  .replace(/[\`*_~<>|\[\]]/g,' ')
+  .replace(/\s+/g,' ').trim().slice(0,85);
+ const id=plain(game?.id)||'?';
+ const name=plain(game?.name)||`MATCH #${id}`;
+ const mode=plain(game?.mode)||'MATCH';
+ const regions={EU:'EUROPE',US:'AMERICA',ASIA:'ASIA',BRAZIL:'BRAZIL'};
+ const regionCode=String(game?.region??'').toUpperCase();
+ const region=regions[regionCode]||plain(regionCode)||'REGION N/A';
+ const count=Number(game?.players);
+ const countText=Number.isFinite(count)&&count>=0?` • ${Math.trunc(count)} PLAYERS`:'';
+ return `**EOT SERVER LIST**\n${name} — ${mode} • ${region}${countText}\n${link}`;
 }
 // V42.1: A shared EOT match link is a JOIN link for human visitors.
 // Look up the LIVE match first; never guess a host or send someone to a different game.
