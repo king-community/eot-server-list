@@ -3494,7 +3494,7 @@ let eotSurvivalFilter='all';
 let eotSurvivalSearchTerm='';
 const eotSharedMatch=(()=>{try{const u=new URL(location.href);return {id:u.searchParams.get('match')||'',region:u.searchParams.get('region')||''}}catch(_){return {id:'',region:''}}})();
 // Configure after deploying Cloudflare Worker. Empty = use the existing GitHub Pages match URL.
-const EOT_V42_PREVIEW_ORIGIN='';
+const EOT_V42_PREVIEW_ORIGIN='https://eot-preview2.aarayik729.workers.dev';
 function eotShareLink(g){
  const id=String(g.id),region=String(g.region);
  const base=EOT_V42_PREVIEW_ORIGIN.trim();
