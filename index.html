@@ -3235,9 +3235,8 @@ $('list').addEventListener('click',async e=>{
   const game=state.games.find(g=>g.key===button.dataset.copyGame);
   if(!game)return;
   const link=eotShareLink(game);
-  // Put the EOT brand and actual match facts above the URL in Discord.
-  // Preserve a bare URL on its own line so Discord can generate the rich preview.
-  const content=eotDiscordShareText(game,link);
+  // Discord's image and metadata already display these details; share ONLY the URL.
+  const content=link;
   try{
     if(navigator.clipboard&&window.isSecureContext){
       await navigator.clipboard.writeText(content);
@@ -3498,35 +3497,28 @@ let eotSurvivalSearchTerm='';
 const eotSharedMatch=(()=>{try{const u=new URL(location.href);return {id:u.searchParams.get('match')||'',region:u.searchParams.get('region')||''}}catch(_){return {id:'',region:''}}})();
 // Configure after deploying Cloudflare Worker. Empty = use the existing GitHub Pages match URL.
 const EOT_V42_PREVIEW_ORIGIN='https://eot-preview2.aarayik729.workers.dev';
+// EOT V43: server-pinned Discord links resolve one live Starblast game.
+// A bogus/stale server is never trusted without verification by the Worker.
 function eotShareLink(g){
- const id=String(g.id),region=String(g.region);
+ const id=String(g.id), region=String(g.region);
  const base=EOT_V42_PREVIEW_ORIGIN.trim();
  if(base){
-  try{const url=new URL(base);if(url.protocol==='https:' && !url.username && !url.password){
-    const root=url.origin;const share=new URL('/m/'+encodeURIComponent(id),root);
-    share.searchParams.set('region',region);return share.toString();
-  }}catch(_){}
+  try{
+   const url=new URL(base);
+   if(url.protocol==='https:'&&!url.username&&!url.password&&/^\d{1,9}$/.test(id)){
+    const address=String(g.address||'').trim();
+    const valid=/^\d{1,3}(?:\.\d{1,3}){3}:\d{1,5}$/.test(address);
+    const path='/m/'+encodeURIComponent(id)+(valid?'@'+address:'');
+    const share=new URL(path,url.origin);
+    if(['EU','US','ASIA'].includes(region))share.searchParams.set('region',region);
+    return share.toString();
+   }
+  }catch(_){/* Fallback for unavailable preview configuration. */}
  }
  const u=new URL(EOT_PUBLIC_URL);u.searchParams.set('match',id);u.searchParams.set('region',region);return u.toString();
 }
 // V42.7: a clean Discord message containing the EOT name and current match facts.
 // A bare URL is intentionally retained because it triggers Discord's rich OG card.
-function eotDiscordShareText(game,link){
- const plain=value=>String(value??'')
-  .replace(/[\r\n\t\u2028\u2029]+/g,' ')
-  .replace(/@/g,'＠') // No accidental Discord @everyone or role mentions from game names.
-  .replace(/[\`*_~<>|\[\]]/g,' ')
-  .replace(/\s+/g,' ').trim().slice(0,85);
- const id=plain(game?.id)||'?';
- const name=plain(game?.name)||`MATCH #${id}`;
- const mode=plain(game?.mode)||'MATCH';
- const regions={EU:'EUROPE',US:'AMERICA',ASIA:'ASIA',BRAZIL:'BRAZIL'};
- const regionCode=String(game?.region??'').toUpperCase();
- const region=regions[regionCode]||plain(regionCode)||'REGION N/A';
- const count=Number(game?.players);
- const countText=Number.isFinite(count)&&count>=0?` • ${Math.trunc(count)} PLAYERS`:'';
- return `**EOT SERVER LIST**\n${name} — ${mode} • ${region}${countText}\n${link}`;
-}
 // V42.1: A shared EOT match link is a JOIN link for human visitors.
 // Look up the LIVE match first; never guess a host or send someone to a different game.
 const eotSharedJoin={handled:false,attempts:0};
