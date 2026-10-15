@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>EOT SERVER LIST</title><meta name="description" content="EOT SERVER LIST — explore live Starblast.io matches, find players, inspect rosters and discover community clan tags.">
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>EOT SERVER LIST</title><meta name="eot-clan-version" content="V43.4"><meta name="description" content="EOT SERVER LIST — explore live Starblast.io matches, find players, inspect rosters and discover community clan tags.">
 <meta name="theme-color" content="#070e2b">
 <link rel="canonical" href="https://king-community.github.io/eot-server-list/">
 <meta property="og:type" content="website">
@@ -2544,6 +2544,42 @@ KNOWN_TAGS.push(
  {group:'NVR',tag:'NVR►'}, {group:'NVR',tag:'NVR➜'}, {group:'NVR',tag:'NVR→'},
  {group:'☾',tag:'☾ '}, {group:'☾',tag:'Ͼ '}, {group:'☾',tag:'☽ '}
 );
+// V43.3 — exact clan prefixes supplied by the EOT owner.
+// The patterns below are username labels only; they do not verify clan membership.
+// Prefer exact decorated variants before generic normalization and legacy matches.
+const EOT_OWNER_CLAN_TAGS = [
+ {tag:'ᴘ↊ᴡ', key:'P2W', label:'P2W', joined:true},
+ {tag:'✯F℣➛', key:'✯F℣➛', label:'✯F℣➛', joined:true},
+ {tag:'VꝚ', key:'VꝚ', label:'VꝚ', joined:true},
+ {tag:'CSE', key:'CSE', label:'CSE'},
+ {tag:'ȻꞨɆ', key:'CSE', label:'CSE'},
+ {tag:'[GΞN]', key:'GΞN', label:'GΞN', joined:true},
+ {tag:'[GEN]', key:'GΞN', label:'GΞN', joined:true},
+ {tag:'RoW', key:'ROW', label:'ROW'},
+ {tag:'꒯ꋪꇙﾒ', key:'꒯ꋪꇙﾒ', label:'꒯ꋪꇙﾒ', joined:true},
+ {tag:'☾', key:'MOON', label:'MOON', joined:true},
+ {tag:'☽', key:'MOON', label:'MOON', joined:true},
+ {tag:'MOON', key:'MOON', label:'MOON'},
+ {tag:'SᄅF̶', key:'S2F', label:'S2F', joined:true},
+ {tag:'V̶̶̶S̶▸', key:'V̶̶̶S̶▸', label:'V̶̶̶S̶▸', joined:true},
+ {tag:'FX', key:'FX', label:'FX'}
+];
+// Do not add short plain tags to the legacy substring matcher: that would
+// misidentify ordinary names such as 'CSElite' or 'ROWboat'.
+function eotOwnerClanPrefix(name){
+ const normalized=eotNormalizeTag(String(name??'').trimStart());
+ for(const entry of EOT_OWNER_CLAN_TAGS){
+  const t=eotNormalizeTag(entry.tag);
+  if(!normalized.startsWith(t))continue;
+  const remaining=normalized.slice(t.length);
+  // Plain short tags MUST end at a separator or the end of the nickname.
+  // Distinctive, decorated tags may be attached directly to the player name.
+  if(!entry.joined && remaining && /^[\p{L}\p{N}\p{M}]/u.test(remaining))continue;
+  return {key:entry.key,label:entry.label,source:'nickname'};
+ }
+ return null;
+}
+
 const eotLocalTags=(()=>{try{const t=JSON.parse(localStorage.getItem('eot_custom_clan_tags_v1')||'[]');return Array.isArray(t)?t.filter(x=>x&&typeof x.tag==='string'&&x.tag.length<23&&typeof x.label==='string'&&x.label.length<29).slice(0,40):[]}catch(_){return []}})();
 function eotNormalizeTag(v){return String(v??'').normalize('NFKC').replace(/[\u200b-\u200f\uFEFF]/g,'').trim().toLocaleLowerCase()}
 // V39.1: Unicode-aware clan detection. No claim of official membership.
@@ -2584,24 +2620,45 @@ function eotAddedClanPrefix(name){
  return null;
 }
 
-// V43.1: exact visual-prefix patterns from the roster screenshots.
-// Detect NVR including its stylized initial N (e.g. ƝVR) and P2W as a
-// standalone leading tag only. Never mistake NVRAM or p2warrior for clans.
+// V43.2: recognize visually styled NVR and P2W tags at the start of a nickname.
+// Some roster nicknames use the Unicode letter 'ƻ' as the digit 2,
+// and small-cap 'ᴡ' as W. NFKD by itself does not fold these glyphs.
+// Pattern matching is anchored at the beginning and requires a separator
+// or end-of-name, avoiding accidental matches within longer words.
+// V43.4 — recognize P2W / NVR visual prefixes without guessing clan membership.
+// Keep matching anchored at the START of a nickname; ordinary text such as
+// 'p2warrior' and 'nvradio' must not become a clan tag.
 function eotRosterVisualClan(name){
- const head=eotClanFold(name)
-  .replace(/^[\s~`*'_.·✦★✧☆♛♕☾☽❮❯⟦⟧【】[\]{}()<>〈〉⌁︵￣¯-]+/u,'');
- const lookalikes={'Ɲ':'N','Ŋ':'N','ɴ':'N','И':'N','Ν':'N','Ꞑ':'N',
-                   'ᴠ':'V','Ѵ':'V','Ꮩ':'V','ʋ':'V',
-                   'ʀ':'R','Ʀ':'R','Ɍ':'R','Я':'R','ᴿ':'R',
-                   'ᴡ':'W','Ԝ':'W','Ꮤ':'W'};
- const visible=[...head].map(c=>lookalikes[c]||c).join('');
- const match=visible.match(/^(NVR|P2W)(?=$|[^\p{L}\p{N}])/u);
- return match?{key:match[1],label:match[1],source:'nickname'}:null;
+ const raw=String(name??'').trimStart().replace(/^[\s~`*'_.·✦★✧☆♛♕☾☽❮❯⟦⟧【】\[\]{}()<>〈〉⌁︵￣¯-]+/u,'');
+ // eotClanFold uppercases the name first. Certain Unicode lowercase symbols
+ // become OTHER Unicode uppercase symbols (e.g. ƻ -> Ƽ), so map both forms.
+ const folded=eotClanFold(raw);
+ const lookalikes={
+  'Ɲ':'N','Ŋ':'N','ɴ':'N','И':'N','Ν':'N','Ꞑ':'N',
+  'ᴠ':'V','Ѵ':'V','Ꮩ':'V','ʋ':'V',
+  'ʀ':'R','Ʀ':'R','Ɍ':'R','Я':'R','ᴿ':'R',
+  'ᴡ':'W','Ԝ':'W','ԝ':'W','Ꮤ':'W','Ꮃ':'W','Ɯ':'W',
+  'ƻ':'2','Ƽ':'2','ᒿ':'2','Ƨ':'2','ƨ':'2','ϩ':'2','Ϩ':'2','↊':'2','↋':'2'
+ };
+ const visible=[...folded].map(c=>lookalikes[c]||c).join('');
+ const hit=visible.match(/^(P2W|NVR)/u);
+ if(!hit)return null;
+ const tail=visible.slice(hit[0].length);
+ // A separator, emoji, arrow or end of nickname is an unambiguous prefix.
+ const separated=!tail||/^[^\p{L}\p{N}]/u.test(tail);
+ // Decorated clan glyphs can be glued directly to the rest of the username.
+ // Plain ASCII P2W/NVR cannot: 'p2warrior' and 'nvradio' are not tags.
+ const decorated=[...raw].slice(0,3).some(c=>!/[A-Za-z0-9]/.test(c));
+ if(!separated&&!decorated)return null;
+ return {key:hit[1],label:hit[1],source:'nickname'};
 }
 
+window.EOT_CLAN_VERSION='V43.4';
 function playerTag(name){
  const original=String(name??'').trim();
  if(!original)return null;
+ const ownerTag=eotOwnerClanPrefix(original);
+ if(ownerTag)return ownerTag;
  const visualTag=eotRosterVisualClan(original);
  if(visualTag)return visualTag;
  const addedClan=eotAddedClanPrefix(original);
@@ -2629,6 +2686,7 @@ function playerTag(name){
   if(index<0||index>22)continue;
   const decorated=/[^\p{L}\p{N}]/u.test(t);
   if(!decorated&&index!==0&&/[\p{L}\p{N}]/u.test(n[index-1]))continue;
+  if(t==='fx' && /[\p{L}\p{N}]/u.test(n[index+t.length]||''))continue;
   return {key:eotNormalizeTag(entry.group).toUpperCase(),label:entry.group,source:'nickname'};
  }
  // Fold diacritics on the *whole nickname*, not just the stored clan pattern.
