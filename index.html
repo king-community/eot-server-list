@@ -2584,9 +2584,26 @@ function eotAddedClanPrefix(name){
  return null;
 }
 
+// V43.1: exact visual-prefix patterns from the roster screenshots.
+// Detect NVR including its stylized initial N (e.g. ƝVR) and P2W as a
+// standalone leading tag only. Never mistake NVRAM or p2warrior for clans.
+function eotRosterVisualClan(name){
+ const head=eotClanFold(name)
+  .replace(/^[\s~`*'_.·✦★✧☆♛♕☾☽❮❯⟦⟧【】[\]{}()<>〈〉⌁︵￣¯-]+/u,'');
+ const lookalikes={'Ɲ':'N','Ŋ':'N','ɴ':'N','И':'N','Ν':'N','Ꞑ':'N',
+                   'ᴠ':'V','Ѵ':'V','Ꮩ':'V','ʋ':'V',
+                   'ʀ':'R','Ʀ':'R','Ɍ':'R','Я':'R','ᴿ':'R',
+                   'ᴡ':'W','Ԝ':'W','Ꮤ':'W'};
+ const visible=[...head].map(c=>lookalikes[c]||c).join('');
+ const match=visible.match(/^(NVR|P2W)(?=$|[^\p{L}\p{N}])/u);
+ return match?{key:match[1],label:match[1],source:'nickname'}:null;
+}
+
 function playerTag(name){
  const original=String(name??'').trim();
  if(!original)return null;
+ const visualTag=eotRosterVisualClan(original);
+ if(visualTag)return visualTag;
  const addedClan=eotAddedClanPrefix(original);
  if(addedClan)return addedClan;
  // Explicit leading prefixes come first, even when a symbol or an emoji follows them.
